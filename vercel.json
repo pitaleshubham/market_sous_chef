@@ -1,0 +1,8 @@
+{
+    "rewrites": [
+        {
+            "source": "/rest/:path*",
+            "destination": "https://apiconnect.angelbroking.com/rest/:path*"
+        }
+    ]
+}
