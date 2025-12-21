@@ -28,11 +28,14 @@ export const fetchHoldings = async (creds: AngelCredentials): Promise<PortfolioH
         })
     });
 
-    const loginData = await loginResponse.json().catch(async (e) => {
-        const text = await loginResponse.text();
-        console.error("Login parsing failed. Response preview:", text.substring(0, 200));
+    const responseText = await loginResponse.text();
+    let loginData;
+    try {
+        loginData = JSON.parse(responseText);
+    } catch (e) {
+        console.error("Login parsing failed. Response preview:", responseText.substring(0, 200));
         throw new Error("Connection Error: The server returned HTML instead of data. This usually means the Proxy is not working.");
-    });
+    }
 
     if (!loginData.status || !loginData.data?.jwtToken) {
         throw new Error(loginData.message || "Invalid Credentials or API Error");
