@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { fetchHoldings, AngelCredentials, PortfolioHolding, StockAnalysis, NewsItem } from '../services/angelService';
 import CredentialForm from './CredentialForm';
 import { RefreshCw, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
@@ -30,8 +30,9 @@ const Dashboard: React.FC = () => {
 
             // Trigger News Fetch
             refetchNews(data);
-        } catch (err) {
-            setError("Failed to fetch portfolio. Check credentials.");
+        } catch (err: any) {
+            console.error("Login Error:", err);
+            setError(err.message || "Failed to fetch portfolio. Check credentials.");
         } finally {
             setIsLoading(false);
         }
