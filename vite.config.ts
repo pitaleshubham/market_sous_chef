@@ -13,4 +13,13 @@ export default defineConfig({
             }
         }
     }
+    server: {
+        proxy: {
+            '/rest': {
+                target: 'https://apiconnect.angelbroking.com',
+                changeOrigin: true,
+                secure: false,
+            }
+        }
+    }
 })
