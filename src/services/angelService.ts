@@ -7,8 +7,7 @@ export type { PortfolioHolding, Position, StockAnalysis, NewsItem } from './type
 // Helper to get local IP if available, but for now we rely on strict proxy path
 const PROXY_BASE = ''; // The proxy is at root relative path '/rest'
 
-export const fetchHoldings = async (creds: AngelCredentials): Promise<PortfolioHolding[]> => {
-    // 1. Authenticate
+export const authenticate = async (creds: AngelCredentials): Promise<string> => {
     const loginResponse = await fetch(`${PROXY_BASE}/rest/auth/angelbroking/user/v1/loginByPassword`, {
         method: 'POST',
         headers: {
@@ -16,7 +15,7 @@ export const fetchHoldings = async (creds: AngelCredentials): Promise<PortfolioH
             'Accept': 'application/json',
             'X-UserType': 'USER',
             'X-SourceID': 'WEB',
-            'X-ClientLocalIP': '127.0.0.1', // Mock IP
+            'X-ClientLocalIP': '127.0.0.1',
             'X-ClientPublicIP': '127.0.0.1',
             'X-MACAddress': 'mock-mac',
             'X-PrivateKey': creds.apiKey
@@ -41,13 +40,14 @@ export const fetchHoldings = async (creds: AngelCredentials): Promise<PortfolioH
         throw new Error(loginData.message || "Invalid Credentials or API Error");
     }
 
-    const jwtToken = loginData.data.jwtToken;
+    return loginData.data.jwtToken;
+};
 
-    // 2. Fetch Holdings
+export const fetchHoldings = async (token: string, apiKey: string): Promise<PortfolioHolding[]> => {
     const holdingsResponse = await fetch(`${PROXY_BASE}/rest/secure/angelbroking/portfolio/v1/getHolding`, {
         method: 'GET',
         headers: {
-            'Authorization': `Bearer ${jwtToken}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'X-UserType': 'USER',
@@ -55,7 +55,7 @@ export const fetchHoldings = async (creds: AngelCredentials): Promise<PortfolioH
             'X-ClientLocalIP': '127.0.0.1',
             'X-ClientPublicIP': '127.0.0.1',
             'X-MACAddress': 'mock-mac',
-            'X-PrivateKey': creds.apiKey
+            'X-PrivateKey': apiKey
         }
     });
 
@@ -66,6 +66,50 @@ export const fetchHoldings = async (creds: AngelCredentials): Promise<PortfolioH
     }
 
     return holdingsData.data || [];
+};
+
+export const getLivePrices = async (token: string, apiKey: string, holdings: PortfolioHolding[]): Promise<Record<string, { ltp: number, close: number }>> => {
+    const results: Record<string, { ltp: number, close: number }> = {};
+
+    // Fetch in parallel (Angel API rate limits apply, but for typical portfolios < 50 this is okay-ish. 
+    // Ideally we'd batch, but getLtpData is single. We'll utilize browser concurrency.)
+    // Note: If too many requests, we should batch or sequence.
+
+    await Promise.all(holdings.map(async (h) => {
+        try {
+            const response = await fetch(`${PROXY_BASE}/rest/secure/angelbroking/order/v1/getLtpData`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-UserType': 'USER',
+                    'X-SourceID': 'WEB',
+                    'X-ClientLocalIP': '127.0.0.1',
+                    'X-ClientPublicIP': '127.0.0.1',
+                    'X-MACAddress': 'mock-mac',
+                    'X-PrivateKey': apiKey
+                },
+                body: JSON.stringify({
+                    exchange: h.exchange,
+                    tradingsymbol: h.tradingsymbol,
+                    symboltoken: h.symboltoken
+                })
+            });
+            const data = await response.json();
+            if (data.status && data.data) {
+                // getLtpData returns: open, high, low, close, ltp
+                results[h.tradingsymbol] = {
+                    ltp: parseFloat(data.data.ltp),
+                    close: parseFloat(data.data.close)
+                };
+            }
+        } catch (e) {
+            console.error(`Failed to fetch price for ${h.tradingsymbol}`, e);
+        }
+    }));
+
+    return results;
 };
 
 export const fetchPositions = async (creds: AngelCredentials): Promise<Position[]> => {

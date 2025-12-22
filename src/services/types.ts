@@ -4,6 +4,8 @@ export interface PortfolioHolding {
     quantity: number;
     averageprice: number;
     ltp: number; // Last Traded Price
+    close: number; // Previous Day Close
+    pnl: number;
     product: string;
     exchange: string;
 }
