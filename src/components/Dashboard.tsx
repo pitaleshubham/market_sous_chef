@@ -13,6 +13,7 @@ const Dashboard: React.FC = () => {
     const [holdings, setHoldings] = useState<PortfolioHolding[]>([]);
     const [livePrices, setLivePrices] = useState<Record<string, { ltp: number, close: number }>>({});
     const [isLoading, setIsLoading] = useState(false);
+    const [isPriceLoading, setIsPriceLoading] = useState(false);
     const [isNewsLoading, setIsNewsLoading] = useState(false);
     const [newsData, setNewsData] = useState<NewsItem[]>([]);
     const [error, setError] = useState<string | undefined>();
@@ -35,19 +36,31 @@ const Dashboard: React.FC = () => {
             setHoldings(data);
             setPfLastUpdated(new Date());
 
-            // 3. Fetch Live Prices
-            // We do this asynchronously to show the holdings first, or await it. 
-            // Better to await to avoid "flash" of old data if we were storing it.
-            const prices = await getLivePrices(jwt, creds.apiKey, data);
-            setLivePrices(prices);
+            // Stop Loading here to show UI immediately
+            setIsLoading(false);
 
-            // Trigger News Fetch
+            // 3. Fetch Live Prices (Background)
+            updateLivePrices(jwt, creds.apiKey, data);
+
+            // Trigger News Fetch (Background)
             refetchNews(data);
         } catch (err: any) {
             console.error("Login Error:", err);
             setError(err.message || "Failed to fetch portfolio. Check credentials.");
-        } finally {
             setIsLoading(false);
+        }
+    };
+
+    const updateLivePrices = async (jwt: string, apiKey: string, stocks: PortfolioHolding[]) => {
+        setIsPriceLoading(true);
+        try {
+            const prices = await getLivePrices(jwt, apiKey, stocks);
+            setLivePrices(prices);
+            setPfLastUpdated(new Date());
+        } catch (e) {
+            console.error("Failed to update live prices", e);
+        } finally {
+            setIsPriceLoading(false);
         }
     };
 
@@ -141,6 +154,13 @@ const Dashboard: React.FC = () => {
                     <p className="text-slate-500 text-sm">Portfolio Manager's Copilot</p>
                 </div>
                 <div className="flex items-center gap-4 bg-slate-900 border border-slate-800 p-2 rounded-lg">
+                    {/* Price Loading Indicator */}
+                    {isPriceLoading && (
+                        <div className="flex items-center gap-2 px-2 text-xs text-amber-500 animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                            Updating Prices...
+                        </div>
+                    )}
                     <LastUpdated date={pfLastUpdated} isLoading={isLoading} />
                     <button
                         onClick={() => handleConnect(credentials)}
