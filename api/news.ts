@@ -28,10 +28,21 @@ export default async function handler(req: any, res: any) {
 
             let description = "";
             if (descriptionMatch) {
-                // Remove HTML tags
-                description = descriptionMatch[1].replace(/<[^>]*>?/gm, '');
-                // Decode basic entities
-                description = description.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+                let clean = descriptionMatch[1];
+
+                // 1. Decode generic HTML entities for tags
+                clean = clean.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+
+                // 2. Remove HTML tags (including anchors, fonts, etc.)
+                clean = clean.replace(/<[^>]*>?/gm, '');
+
+                // 3. Decode remaining text entities
+                clean = clean.replace(/&nbsp;/g, ' ')
+                    .replace(/&amp;/g, '&')
+                    .replace(/&quot;/g, '"')
+                    .replace(/&#39;/g, "'");
+
+                description = clean;
             }
 
             if (titleMatch && linkMatch) {
