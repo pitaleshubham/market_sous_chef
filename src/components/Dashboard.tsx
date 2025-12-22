@@ -1,4 +1,3 @@
-```typescript
 import React, { useState, useMemo } from 'react';
 import { authenticate, fetchHoldings, getLivePrices, AngelCredentials, PortfolioHolding, StockAnalysis, NewsItem } from '../services/angelService';
 import CredentialForm from './CredentialForm';
@@ -17,7 +16,7 @@ const Dashboard: React.FC = () => {
     const [isNewsLoading, setIsNewsLoading] = useState(false);
     const [newsData, setNewsData] = useState<NewsItem[]>([]);
     const [error, setError] = useState<string | undefined>();
-    
+
     // Timestamps
     const [pfLastUpdated, setPfLastUpdated] = useState<Date | null>(null);
     const [newsLastUpdated, setNewsLastUpdated] = useState<Date | null>(null);
@@ -41,7 +40,7 @@ const Dashboard: React.FC = () => {
             // Better to await to avoid "flash" of old data if we were storing it.
             const prices = await getLivePrices(jwt, creds.apiKey, data);
             setLivePrices(prices);
-            
+
             // Trigger News Fetch
             refetchNews(data);
         } catch (err: any) {
@@ -61,7 +60,7 @@ const Dashboard: React.FC = () => {
                 const items = await fetchStockNews(stock.tradingsymbol);
                 allNews.push(...items);
             } catch (e) {
-                console.error(`Failed to fetch news for ${ stock.tradingsymbol }`);
+                console.error(`Failed to fetch news for ${stock.tradingsymbol}`);
             }
         }));
         setNewsData(allNews);
@@ -75,7 +74,7 @@ const Dashboard: React.FC = () => {
 
         let totalValue = 0;
         let totalInvested = 0;
-        let totalDayGL = 0; 
+        let totalDayGL = 0;
 
         const analyzedStocks: StockAnalysis[] = holdings.map(h => {
             // Use Live Price if available, else fallback to Holding's LTP (which is static/snapshot)
@@ -85,13 +84,13 @@ const Dashboard: React.FC = () => {
 
             const currentValue = h.quantity * currentLtp;
             const investedValue = h.quantity * h.averageprice;
-            
+
             totalValue += currentValue;
             totalInvested += investedValue;
-            
+
             const dayGL = (currentLtp - previousClose) * h.quantity;
             totalDayGL += dayGL;
-            
+
             const dayChangePercent = previousClose ? ((currentLtp - previousClose) / previousClose) * 100 : 0;
 
             return {
@@ -102,8 +101,7 @@ const Dashboard: React.FC = () => {
                 pnl: currentValue - investedValue,
                 pnlPercent: investedValue ? ((currentValue - investedValue) / investedValue) * 100 : 0,
                 dayChangePercent: dayChangePercent,
-                portfolioImpact: dayGL, 
-                // We don't attach news here anymore, handled separately
+                portfolioImpact: dayGL,
             };
         });
 
@@ -119,12 +117,12 @@ const Dashboard: React.FC = () => {
             totalInvested,
             totalPnl,
             totalDayGL,
-            totalDayGLPercent: (totalDayGL / (totalValue - totalDayGL)) * 100,
+            totalDayGLPercent: (totalValue - totalDayGL) ? (totalDayGL / (totalValue - totalDayGL)) * 100 : 0,
             analyzedStocks,
             topGainers,
             topLosers
         };
-    }, [holdings, credentials]);
+    }, [holdings, credentials, livePrices]);
 
     if (!credentials) {
         return <CredentialForm onSubmit={handleConnect} isLoading={isLoading} error={error} />;
@@ -158,21 +156,21 @@ const Dashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card
                     label="Portfolio Value"
-                    value={`₹ ${ analysis.totalValue.toLocaleString('en-IN', { maximumFractionDigits: 0 }) } `}
-                    subValue={`Invested: ₹ ${ analysis.totalInvested.toLocaleString('en-IN', { maximumFractionDigits: 0 }) } `}
+                    value={`₹ ${analysis.totalValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+                    subValue={`Invested: ₹ ${analysis.totalInvested.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
                     icon={<DollarSign className="text-blue-400" />}
                 />
                 <Card
                     label="Total P&L"
-                    value={`₹ ${ analysis.totalPnl.toLocaleString('en-IN', { maximumFractionDigits: 0 }) } `}
-                    subValue={`${ ((analysis.totalPnl / analysis.totalInvested) * 100).toFixed(2) }% All time`}
+                    value={`₹ ${analysis.totalPnl.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+                    subValue={`${analysis.totalInvested ? ((analysis.totalPnl / analysis.totalInvested) * 100).toFixed(2) : 0}% All time`}
                     isPositive={analysis.totalPnl >= 0}
                     icon={<TrendingUp className={analysis.totalPnl >= 0 ? "text-green-400" : "text-red-400"} />}
                 />
                 <Card
                     label="Today's Move"
-                    value={`₹ ${ Math.abs(analysis.totalDayGL).toLocaleString('en-IN', { maximumFractionDigits: 0 }) } `}
-                    subValue={`${ analysis.totalDayGLPercent > 0 ? '+' : '' }${ analysis.totalDayGLPercent.toFixed(2) }% Today`}
+                    value={`₹ ${Math.abs(analysis.totalDayGL).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+                    subValue={`${analysis.totalDayGLPercent > 0 ? '+' : ''}${analysis.totalDayGLPercent.toFixed(2)}% Today`}
                     isPositive={analysis.totalDayGL >= 0}
                     icon={analysis.totalDayGL >= 0 ? <TrendingUp className="text-green-400" /> : <TrendingDown className="text-red-400" />}
                 />
