@@ -24,13 +24,23 @@ export default async function handler(req: any, res: any) {
             const linkMatch = content.match(/<link>(.*?)<\/link>/);
             const dateMatch = content.match(/<pubDate>(.*?)<\/pubDate>/);
             const sourceMatch = content.match(/<source url=".*?">(.*?)<\/source>/);
+            const descriptionMatch = content.match(/<description>([\s\S]*?)<\/description>/);
+
+            let description = "";
+            if (descriptionMatch) {
+                // Remove HTML tags
+                description = descriptionMatch[1].replace(/<[^>]*>?/gm, '');
+                // Decode basic entities
+                description = description.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+            }
 
             if (titleMatch && linkMatch) {
                 items.push({
                     title: titleMatch[1].replace('<![CDATA[', '').replace(']]>', ''),
                     link: linkMatch[1],
                     pubDate: dateMatch ? new Date(dateMatch[1]).toISOString() : new Date().toISOString(),
-                    source: sourceMatch ? sourceMatch[1] : 'Google News'
+                    source: sourceMatch ? sourceMatch[1] : 'Google News',
+                    description: description.trim() || "Click to read full coverage."
                 });
             }
             if (items.length >= 5) break; // Limit to 5 items

@@ -39,7 +39,7 @@ export const fetchStockNews = async (symbol: string): Promise<NewsItem[]> => {
                 id: `${symbol}-${index}-${Date.now()}`,
                 symbol,
                 headline: article.title,
-                summary: "Click to read full coverage from " + article.source, // Real summary requires expensive scraping
+                summary: article.description,
                 sentiment,
                 source: article.source,
                 timestamp: new Date(article.pubDate),
