@@ -22,43 +22,32 @@ const SUMMARIES = {
 const SOURCES = ["Economic Times", "Moneycontrol", "LiveMint", "CNBC-TV18", "Bloomberg Quint"];
 
 export const fetchStockNews = async (symbol: string): Promise<NewsItem[]> => {
-    // Simulate API Latency
-    await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 1000));
+    try {
+        const response = await fetch(`/api/news?q=${encodeURIComponent(symbol)}`);
+        const data = await response.json();
 
-    // Deterministic random to give stable "Demo" news for specific stocks
-    const seed = symbol.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const hasNews = seed % 3 !== 0; // 2/3rds of stocks have news
+        if (!data.articles) return [];
 
-    if (!hasNews) return [];
+        return data.articles.map((article: any, index: number) => {
+            // Very basic simulated sentiment based on keywords (since we don't have a real AI analyzer backend)
+            const text = article.title.toLowerCase();
+            let sentiment: 'positive' | 'negative' | 'neutral' = 'neutral';
+            if (text.includes('surge') || text.includes('jump') || text.includes('high') || text.includes('buy') || text.includes('profit')) sentiment = 'positive';
+            if (text.includes('fall') || text.includes('drop') || text.includes('low') || text.includes('sell') || text.includes('loss') || text.includes('down')) sentiment = 'negative';
 
-    const numItems = 1 + (seed % 2); // 1 or 2 items
-    const newsItems: NewsItem[] = [];
-
-    for (let i = 0; i < numItems; i++) {
-        const sentimentVal = (seed + i) % 3; // 0=pos, 1=neg, 2=neu
-        const sentiment: 'positive' | 'negative' | 'neutral' =
-            sentimentVal === 0 ? 'positive' : sentimentVal === 1 ? 'negative' : 'neutral';
-
-        const summaryTemplates = SUMMARIES[sentiment];
-        const summary = summaryTemplates[(seed + i) % summaryTemplates.length];
-
-        const source = SOURCES[(seed + i) % SOURCES.length];
-
-        // Random time within last 24 hours
-        const timeAgo = Math.floor(Math.random() * 24 * 60 * 60 * 1000);
-        const timestamp = new Date(Date.now() - timeAgo);
-
-        newsItems.push({
-            id: `${symbol}-${i}-${Date.now()}`,
-            symbol,
-            headline: `${symbol}: ${summary.split('.')[0]}...`,
-            summary,
-            sentiment,
-            source,
-            timestamp,
-            url: `https://www.google.com/search?q=${symbol}+news`
+            return {
+                id: `${symbol}-${index}-${Date.now()}`,
+                symbol,
+                headline: article.title,
+                summary: "Click to read full coverage from " + article.source, // Real summary requires expensive scraping
+                sentiment,
+                source: article.source,
+                timestamp: new Date(article.pubDate),
+                url: article.link
+            };
         });
+    } catch (error) {
+        console.error("News fetch failed", error);
+        return [];
     }
-
-    return newsItems;
 };
