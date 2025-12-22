@@ -29,12 +29,14 @@ const Dashboard: React.FC = () => {
             // 1. Get Token (if not already valid, but simplicity we re-login on explicit refresh)
             const jwt = await authenticate(creds);
             setToken(jwt);
-            setCredentials(creds);
 
             // 2. Fetch Holdings
             const data = await fetchHoldings(jwt, creds.apiKey);
             setHoldings(data);
             setPfLastUpdated(new Date());
+
+            // Only set credentials AFTER we confirm we have data access
+            setCredentials(creds);
 
             // Stop Loading here to show UI immediately
             setIsLoading(false);
@@ -47,6 +49,7 @@ const Dashboard: React.FC = () => {
         } catch (err: any) {
             console.error("Login Error:", err);
             setError(err.message || "Failed to fetch portfolio. Check credentials.");
+            setCredentials(null); // Ensure we stay on login screen
             setIsLoading(false);
         }
     };
@@ -83,7 +86,13 @@ const Dashboard: React.FC = () => {
 
     // Analyze Data
     const analysis = useMemo(() => {
-        if (!holdings.length) return null;
+        // Always return a valid object even if empty, so we render the dashboard
+        const emptyAnalysis = {
+            totalValue: 0, totalInvested: 0, totalPnl: 0, totalDayGL: 0, totalDayGLPercent: 0,
+            analyzedStocks: [], topGainers: [], topLosers: []
+        };
+
+        if (!holdings.length) return emptyAnalysis;
 
         let totalValue = 0;
         let totalInvested = 0;
