@@ -145,10 +145,22 @@ const NewsCard: React.FC<{ item: NewsItem }> = ({ item }) => {
 
 function getTimeAgo(date: Date) {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-    let interval = seconds / 3600;
-    if (interval > 1) return Math.floor(interval) + " hours ago";
-    interval = seconds / 60;
-    if (interval > 1) return Math.floor(interval) + " minutes ago";
+
+    let interval = seconds / 86400; // Days
+    if (interval > 1) {
+        return Math.floor(interval) + (Math.floor(interval) === 1 ? " day ago" : " days ago");
+    }
+
+    interval = seconds / 3600; // Hours
+    if (interval > 1) {
+        return Math.floor(interval) + " hours ago";
+    }
+
+    interval = seconds / 60; // Minutes
+    if (interval > 1) {
+        return Math.floor(interval) + " minutes ago";
+    }
+
     return Math.floor(seconds) + " seconds ago";
 }
 
