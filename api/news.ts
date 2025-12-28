@@ -46,15 +46,22 @@ export default async function handler(req: any, res: any) {
             }
 
             if (titleMatch && linkMatch) {
-                items.push({
-                    title: titleMatch[1].replace('<![CDATA[', '').replace(']]>', ''),
-                    link: linkMatch[1],
-                    pubDate: dateMatch ? new Date(dateMatch[1]).toISOString() : new Date().toISOString(),
-                    source: sourceMatch ? sourceMatch[1] : 'Google News',
-                    description: description.trim() || "Click to read full coverage."
-                });
+                const pubDateStr = dateMatch ? dateMatch[1] : new Date().toISOString();
+                const pubDate = new Date(pubDateStr);
+                const oneWeekAgo = new Date();
+                oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+                if (pubDate >= oneWeekAgo) {
+                    items.push({
+                        title: titleMatch[1].replace('<![CDATA[', '').replace(']]>', ''),
+                        link: linkMatch[1],
+                        pubDate: pubDate.toISOString(),
+                        source: sourceMatch ? sourceMatch[1] : 'Google News',
+                        description: description.trim() || ""
+                    });
+                }
             }
-            if (items.length >= 5) break; // Limit to 5 items
+            if (items.length >= 5) break;
         }
 
         res.status(200).json({ articles: items });
