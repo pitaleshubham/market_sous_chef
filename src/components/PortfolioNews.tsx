@@ -85,6 +85,38 @@ const PortfolioNews: React.FC<Props> = ({ news, lastUpdated, isLoading, onRefres
 
 const NewsCard: React.FC<{ item: NewsItem }> = ({ item }) => {
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysis, setAnalysis] = useState<{ summary: string, impact_analysis: string, verdict: string } | null>(null);
+
+    const handleAnalyze = async (e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent toggling expand
+        if (analysis) {
+            setIsExpanded(true); // Just expand if already has data
+            return;
+        }
+
+        setIsAnalyzing(true);
+        setIsExpanded(true);
+        try {
+            const res = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    url: item.url,
+                    headline: item.headline,
+                    description: item.summary,
+                    symbol: item.symbol
+                })
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            setAnalysis(data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
 
     const sentimentColor = item.sentiment === 'positive' ? 'text-green-400 border-green-500/30 bg-green-500/10' :
         item.sentiment === 'negative' ? 'text-red-400 border-red-500/30 bg-red-500/10' :
@@ -117,13 +149,53 @@ const NewsCard: React.FC<{ item: NewsItem }> = ({ item }) => {
                     )}
                 </div>
 
-                <button className="text-slate-600 group-hover:text-slate-400 mt-1">
-                    {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                </button>
+                <div className="flex flex-col items-end gap-2">
+                    <button className="text-slate-600 group-hover:text-slate-400 mt-1">
+                        {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                    </button>
+                    <button
+                        onClick={handleAnalyze}
+                        disabled={isAnalyzing}
+                        className={cn(
+                            "text-[10px] uppercase font-bold px-2 py-1 rounded border transition-all",
+                            analysis
+                                ? "border-purple-500 text-purple-400 bg-purple-500/10"
+                                : "border-slate-700 text-slate-500 hover:border-blue-500 hover:text-blue-400"
+                        )}
+                    >
+                        {isAnalyzing ? "Reading..." : analysis ? "Analyzed" : "AI Analyze"}
+                    </button>
+                </div>
             </div>
 
             {isExpanded && (
                 <div className="mt-4 pt-4 border-t border-slate-800/50 animate-in fade-in slide-in-from-top-2">
+                    {/* AI Analysis Result */}
+                    {(analysis || isAnalyzing) && (
+                        <div className="mb-4 bg-purple-900/10 border border-purple-500/30 rounded-lg p-3">
+                            {isAnalyzing ? (
+                                <div className="flex items-center gap-2 text-sm text-purple-400 animate-pulse">
+                                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" />
+                                    Agent is reading article and analyzing impact...
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <h4 className="text-xs font-bold text-purple-400 uppercase tracking-wider">AI Analyst Insight</h4>
+                                        <span className={cn("text-xs px-2 py-0.5 rounded border",
+                                            analysis?.verdict === 'Bullish' ? "text-green-400 border-green-500/50" :
+                                                analysis?.verdict === 'Bearish' ? "text-red-400 border-red-500/50" :
+                                                    "text-slate-400 border-slate-500/50")}>
+                                            {analysis?.verdict}
+                                        </span>
+                                    </div>
+                                    <p className="text-sm text-slate-300"><span className="text-slate-500 font-medium">Summary:</span> {analysis?.summary}</p>
+                                    <p className="text-sm text-slate-300"><span className="text-slate-500 font-medium">Impact:</span> {analysis?.impact_analysis}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     <div className="bg-blue-900/10 border-l-2 border-blue-500 pl-3 py-2 rounded-r mb-3">
                         <p className="text-sm text-slate-300 italic">
                             "{item.summary}"
