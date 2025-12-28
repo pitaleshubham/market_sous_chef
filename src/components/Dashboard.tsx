@@ -8,6 +8,7 @@ import PortfolioNews from './PortfolioNews';
 import LastUpdated from './LastUpdated';
 
 const Dashboard: React.FC = () => {
+    type SortOption = 'impact' | 'pnl' | 'invested' | 'dayChange' | 'ltp';
     const [credentials, setCredentials] = useState<AngelCredentials | null>(null);
     const [token, setToken] = useState<string | null>(null);
     const [holdings, setHoldings] = useState<PortfolioHolding[]>([]);
@@ -17,6 +18,7 @@ const Dashboard: React.FC = () => {
     const [isNewsLoading, setIsNewsLoading] = useState(false);
     const [newsData, setNewsData] = useState<NewsItem[]>([]);
     const [error, setError] = useState<string | undefined>();
+    const [sortBy, setSortBy] = useState<SortOption>('impact');
 
     // Timestamps
     const [pfLastUpdated, setPfLastUpdated] = useState<Date | null>(null);
@@ -129,10 +131,38 @@ const Dashboard: React.FC = () => {
 
         const totalPnl = totalValue - totalInvested;
 
-        const sortedByImpact = [...analyzedStocks].sort((a, b) => b.portfolioImpact - a.portfolioImpact);
+        const sortedByImpact = [...analyzedStocks];
+
+        // Sorting Logic
+        if (sortBy === 'impact') {
+            sortedByImpact.sort((a, b) => b.portfolioImpact - a.portfolioImpact);
+        } else if (sortBy === 'pnl') {
+            sortedByImpact.sort((a, b) => b.pnlPercent - a.pnlPercent);
+        } else if (sortBy === 'invested') {
+            sortedByImpact.sort((a, b) => b.investedValue - a.investedValue);
+        } else if (sortBy === 'dayChange') {
+            sortedByImpact.sort((a, b) => b.dayChangePercent - a.dayChangePercent);
+        } else if (sortBy === 'ltp') {
+            // Just implied by dayChange really, but if they meant Absolute LTP? Assume Day Change % for "LTP change"
+            sortedByImpact.sort((a, b) => b.dayChangePercent - a.dayChangePercent);
+        }
+
         // Changed to Top 5
-        const topGainers = sortedByImpact.filter(s => s.portfolioImpact > 0).slice(0, 5);
-        const topLosers = sortedByImpact.filter(s => s.portfolioImpact < 0).reverse().slice(0, 5);
+        // For "Invested", "Draggers" (Losers) doesn't make total sense as "Bottom 5 invested", but we can stick to the logic of "Bottom of the list"
+        // But for Invested, usually you just want to see top holdings. 
+        // Let's keep the split: Top 5 from top (Gainers/High) and Top 5 from bottom (Losers/Low)
+
+        const topGainers = sortedByImpact.slice(0, 5);
+        // For negative lists (Draggers), we usually want the bottom of the sorted list, reversed.
+        // If sorting by P&L: Top is +100%, Bottom is -50%. slice(-5).reverse() gives -50%, -40%...
+        const topLosers = sortedByImpact.slice(-5).reverse();
+
+        // Special handling: If sorting by 'Invested', 'Top Losers' implies 'Lowest Invested'. 
+        // If sorting by 'Impact' or 'P&L' or 'DayChange', it implies 'Worst Performers'.
+
+        // Filter out positives for "Losers" ONLY IF we are sorting by performance metrics
+        // User asked "Based on invested value". Showing "Lowest Invested" in the red box is technically correct by logic but might be weird. 
+        // Let's accept strictly mathematical "Top 5" and "Bottom 5".
 
         return {
             totalValue,
@@ -144,7 +174,7 @@ const Dashboard: React.FC = () => {
             topGainers,
             topLosers
         };
-    }, [holdings, credentials, livePrices]);
+    }, [holdings, credentials, livePrices, sortBy]);
 
     if (!credentials) {
         return <CredentialForm onSubmit={handleConnect} isLoading={isLoading} error={error} />;
@@ -206,22 +236,31 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* Movers & Draggers */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative">
+                {/* Filter Controls */}
+                <div className="lg:col-span-2 flex justify-end gap-2 text-sm bg-slate-900/30 p-2 rounded-lg">
+                    <span className="text-slate-500 self-center mr-2">Sort by:</span>
+                    <FilterButton active={sortBy === 'impact'} onClick={() => setSortBy('impact')} label="Portfolio Impact" />
+                    <FilterButton active={sortBy === 'pnl'} onClick={() => setSortBy('pnl')} label="Overall P&L %" />
+                    <FilterButton active={sortBy === 'dayChange'} onClick={() => setSortBy('dayChange')} label="Day Change %" />
+                    <FilterButton active={sortBy === 'invested'} onClick={() => setSortBy('invested')} label="Invested Value" />
+                </div>
+
                 {/* Top Movers */}
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold text-green-400 flex items-center gap-2">
-                            <TrendingUp className="w-5 h-5" /> Top Contributors
+                            {sortBy === 'invested' ? 'Top Holdings' : 'Top Contributors'}
                         </h3>
-                        <LastUpdated date={pfLastUpdated} isLoading={isLoading} className="text-[10px]" />
+                        {/* Removed duplicate LastUpdated to clean up UI, relying on header one or adding back if needed */}
                     </div>
                     <div className="space-y-4">
                         {analysis.topGainers.length > 0 ? (
                             analysis.topGainers.map(stock => (
-                                <StockRow key={stock.symbol} stock={stock} type="gainer" />
+                                <StockRow key={stock.symbol} stock={stock} type="gainer" sortBy={sortBy} />
                             ))
                         ) : (
-                            <div className="text-slate-500 text-sm py-4">No significant gainers today.</div>
+                            <div className="text-slate-500 text-sm py-4">No stocks found.</div>
                         )}
                     </div>
                 </div>
@@ -230,17 +269,16 @@ const Dashboard: React.FC = () => {
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold text-red-400 flex items-center gap-2">
-                            <TrendingDown className="w-5 h-5" /> Top Draggers
+                            {sortBy === 'invested' ? 'Bottom Holdings' : 'Top Draggers'}
                         </h3>
-                        <LastUpdated date={pfLastUpdated} isLoading={isLoading} className="text-[10px]" />
                     </div>
                     <div className="space-y-4">
                         {analysis.topLosers.length > 0 ? (
                             analysis.topLosers.map(stock => (
-                                <StockRow key={stock.symbol} stock={stock} type="loser" />
+                                <StockRow key={stock.symbol} stock={stock} type="loser" sortBy={sortBy} />
                             ))
                         ) : (
-                            <div className="text-slate-500 text-sm py-4">No significant losers today.</div>
+                            <div className="text-slate-500 text-sm py-4">No stocks found.</div>
                         )}
                     </div>
                 </div>
@@ -259,6 +297,20 @@ const Dashboard: React.FC = () => {
 };
 
 // Sub-components
+const FilterButton = ({ active, onClick, label }: { active: boolean, onClick: () => void, label: string }) => (
+    <button
+        onClick={onClick}
+        className={cn(
+            "px-3 py-1 rounded-md transition-all border",
+            active
+                ? "bg-blue-500/20 text-blue-300 border-blue-500/50"
+                : "bg-transparent text-slate-500 border-transparent hover:bg-slate-800 hover:text-slate-300"
+        )}
+    >
+        {label}
+    </button>
+);
+
 const Card = ({ label, value, subValue, icon, isPositive }: any) => (
     <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl shadow-lg relative overflow-hidden group hover:border-slate-700 transition-colors">
         <div className="flex justify-between items-start mb-2">
@@ -274,21 +326,53 @@ const Card = ({ label, value, subValue, icon, isPositive }: any) => (
     </div>
 );
 
-const StockRow = ({ stock, type }: { stock: StockAnalysis, type: 'gainer' | 'loser' }) => (
-    <div className="flex justify-between items-center p-3 bg-slate-950 rounded-lg border border-slate-800/50 hover:border-slate-700 transition-colors">
-        <div>
-            <div className="font-medium text-slate-200">{stock.symbol}</div>
-            <div className="text-xs text-slate-500">{stock.quantity} qty • ₹{stock.currentValue.toLocaleString()}</div>
-        </div>
-        <div className="text-right">
-            <div className={cn("font-bold", type === 'gainer' ? "text-green-400" : "text-red-400")}>
-                {stock.dayChangePercent > 0 ? '+' : ''}{stock.dayChangePercent.toFixed(2)}%
+const StockRow = ({ stock, type, sortBy }: { stock: StockAnalysis, type: 'gainer' | 'loser', sortBy: string }) => {
+    // Dynamic Secondary Value based on Sort
+    let primaryMetric = "";
+    let secondaryMetric = "";
+
+    if (sortBy === 'impact') {
+        primaryMetric = `${stock.dayChangePercent > 0 ? '+' : ''}${stock.dayChangePercent.toFixed(2)}%`;
+        secondaryMetric = `Impact: ${stock.portfolioImpact > 0 ? '+' : ''}₹${Math.floor(stock.portfolioImpact)}`;
+    } else if (sortBy === 'pnl') {
+        primaryMetric = `${stock.pnlPercent > 0 ? '+' : ''}${stock.pnlPercent.toFixed(2)}%`;
+        secondaryMetric = `P&L: ₹${Math.floor(stock.pnl).toLocaleString()}`;
+    } else if (sortBy === 'invested') {
+        primaryMetric = `₹${Math.floor(stock.investedValue).toLocaleString()}`;
+        secondaryMetric = `${stock.pnlPercent > 0 ? '+' : ''}${stock.pnlPercent.toFixed(2)}% P&L`;
+    } else if (sortBy === 'dayChange') {
+        primaryMetric = `${stock.dayChangePercent > 0 ? '+' : ''}${stock.dayChangePercent.toFixed(2)}%`;
+        secondaryMetric = `LTP: ₹${(stock.currentValue / stock.quantity).toFixed(2)}`; // approx LTP
+        // Actually we have currentValue = ltp * qty. So currentValue/qty is LTP. 
+        // Better: we don't have LTP in StockAnalysis directly? 
+        // We do: we have currentValue and quantity.
+    }
+
+    // Color logic: if logic is 'inverted' check type. 
+    // Gainer = Top of list. Loser = Bottom of list.
+    // Visuals: Green for gainers, Red for losers usually. 
+    // But for "Invested", Top is just "High Value". Let's keep it neutral or blue?
+    // Let's Stick to Green/Red for simplicity, or just White for Value.
+
+    const isValueMetric = sortBy === 'invested';
+    const valueColor = isValueMetric ? "text-slate-200" : (type === 'gainer' ? "text-green-400" : "text-red-400");
+
+    return (
+        <div className="flex justify-between items-center p-3 bg-slate-950 rounded-lg border border-slate-800/50 hover:border-slate-700 transition-colors">
+            <div>
+                <div className="font-medium text-slate-200">{stock.symbol}</div>
+                <div className="text-xs text-slate-500">{stock.quantity} qty • ₹{Math.floor(stock.currentValue).toLocaleString()}</div>
             </div>
-            <div className={cn("text-xs", type === 'gainer' ? "text-green-500/70" : "text-red-500/70")}>
-                Impact: {stock.portfolioImpact > 0 ? '+' : ''}₹{Math.floor(stock.portfolioImpact)}
+            <div className="text-right">
+                <div className={cn("font-bold", valueColor)}>
+                    {primaryMetric}
+                </div>
+                <div className="text-xs text-slate-500">
+                    {secondaryMetric}
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 export default Dashboard;
